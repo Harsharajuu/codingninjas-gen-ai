@@ -13,8 +13,7 @@ env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: us-central1
   SERVICE_NAME: healthlink
-  ARTIFACT_REPOSITORY: healthlink
-  IMAGE_NAME: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/healthlink/healthlink
+  IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/healthlink
 
 jobs:
   test:
@@ -87,41 +86,19 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: Configure Docker for Artifact Registry
+      - name: Configure Docker for GCR
         run: |
-          gcloud auth configure-docker us-central1-docker.pkg.dev
-
-      - name: Ensure Artifact Registry repository exists
-        run: |
-          gcloud artifacts repositories describe "${{ env.ARTIFACT_REPOSITORY }}" \
-            --location="${{ env.REGION }}" \
-            --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1 || \
-          gcloud artifacts repositories create "${{ env.ARTIFACT_REPOSITORY }}" \
-            --repository-format=docker \
-            --location="${{ env.REGION }}" \
-            --description="HealthLink container images" \
-            --project="${{ env.PROJECT_ID }}"
+          gcloud auth configure-docker
 
       - name: Build Docker image
         run: |
           docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
           docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.IMAGE_NAME }}:latest
 
-      - name: Push Docker image to Artifact Registry
+      - name: Push Docker image to GCR
         run: |
           docker push ${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.IMAGE_NAME }}:latest
-
-      - name: Remove previous Secret Manager bindings
-        run: |
-          if gcloud run services describe "${{ env.SERVICE_NAME }}" \
-            --platform managed \
-            --region "${{ env.REGION }}" >/dev/null 2>&1; then
-            gcloud run services update "${{ env.SERVICE_NAME }}" \
-              --platform managed \
-              --region "${{ env.REGION }}" \
-              --remove-secrets GEMINI_API_KEY,PINECONE_API_KEY
-          fi
 
       - name: Deploy to Cloud Run
         run: |
@@ -130,12 +107,14 @@ jobs:
             --platform managed \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
+            --port 8000 \
             --memory 2Gi \
             --cpu 2 \
             --timeout 300 \
             --max-instances 10 \
             --min-instances 0 \
-            --set-env-vars "LOG_LEVEL=INFO,GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},PINECONE_API_KEY=${{ secrets.PINECONE_API_KEY }}"
+            --set-env-vars "LOG_LEVEL=INFO" \
+            --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest,PINECONE_API_KEY=PINECONE_API_KEY:latest"
 
       - name: Get service URL
         run: |
