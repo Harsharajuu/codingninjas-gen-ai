@@ -112,6 +112,17 @@ jobs:
           docker push ${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.IMAGE_NAME }}:latest
 
+      - name: Remove previous Secret Manager bindings
+        run: |
+          if gcloud run services describe "${{ env.SERVICE_NAME }}" \
+            --platform managed \
+            --region "${{ env.REGION }}" >/dev/null 2>&1; then
+            gcloud run services update "${{ env.SERVICE_NAME }}" \
+              --platform managed \
+              --region "${{ env.REGION }}" \
+              --remove-secrets GEMINI_API_KEY,PINECONE_API_KEY
+          fi
+
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.SERVICE_NAME }} \
