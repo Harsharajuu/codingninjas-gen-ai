@@ -13,7 +13,8 @@ env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: us-central1
   SERVICE_NAME: healthlink
-  IMAGE_NAME: gcr.io/${{ secrets.GCP_PROJECT_ID }}/healthlink
+  ARTIFACT_REPOSITORY: healthlink
+  IMAGE_NAME: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/healthlink/healthlink
 
 jobs:
   test:
@@ -86,16 +87,27 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
-      - name: Configure Docker for GCR
+      - name: Configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker
+          gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Ensure Artifact Registry repository exists
+        run: |
+          gcloud artifacts repositories describe "${{ env.ARTIFACT_REPOSITORY }}" \
+            --location="${{ env.REGION }}" \
+            --project="${{ env.PROJECT_ID }}" >/dev/null 2>&1 || \
+          gcloud artifacts repositories create "${{ env.ARTIFACT_REPOSITORY }}" \
+            --repository-format=docker \
+            --location="${{ env.REGION }}" \
+            --description="HealthLink container images" \
+            --project="${{ env.PROJECT_ID }}"
 
       - name: Build Docker image
         run: |
           docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
           docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.IMAGE_NAME }}:latest
 
-      - name: Push Docker image to GCR
+      - name: Push Docker image to Artifact Registry
         run: |
           docker push ${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.IMAGE_NAME }}:latest
@@ -127,7 +139,7 @@ jobs:
       - name: Run health check
         run: |
           sleep 15
-          curl -f ${{ env.SERVICE_URL }}/api/v1/health || exit 1
+          curl -f "$SERVICE_URL/api/v1/health" || exit 1
           echo "Health check passed!"
 
   notify:
