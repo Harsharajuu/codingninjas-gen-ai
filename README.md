@@ -1,6 +1,6 @@
 # 🏥 HealthLink - Smart Health Management System
 
-An AI-powered health management system that analyzes symptoms, recommends doctors, and schedules appointments using Google Gemini AI and Pinecone RAG technology.
+An AI-powered health management system that analyzes symptoms, recommends doctors, and schedules appointments using Google Gemini AI and Pinecone RAG technology..
 
 ## 📋 Overview
 
